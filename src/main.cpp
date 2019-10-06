@@ -35,6 +35,10 @@ int32_t deadzone(int32_t vin){
 	return (vin > 0) ? vin+DEADZONE : vin-DEADZONE;
 }
 
+int16_t saturation(int32_t vin){
+	return min(max(vin, -255), 255);
+}	
+
 void triangular_wave(int32_t *v1, int32_t *v2){
 	static int32_t triangular_wave_cont;
 	if(triangular_wave_cont >= 1000){
@@ -68,8 +72,8 @@ void step(int32_t *v1, int32_t *v2){
 	else {
 		step_cont++;
 	}
-	*v1 = 64*step_flag;
-	*v2 = 64*step_flag;
+	*v1 = 20*step_flag;
+	*v2 = 20*step_flag;
 }
 
 void run_straight(int32_t *v1, int32_t *v2){
@@ -77,24 +81,56 @@ void run_straight(int32_t *v1, int32_t *v2){
 	*v2 = 64;
 }
 
+int32_t control1(double err){
+	static double old_err;
+	static int32_t old_out;
+	int32_t out = int32_t ( 1.94581757887 * (err -0.625449679756  *  old_err) + old_out);
+	old_err = err + saturation(out)-out;
+	old_out = out;
+	return out;
+}
+
+int32_t control2(double err){
+	static double old_err;
+	static int32_t old_out;
+	int32_t out = int32_t ( 1.3000493385 * (err - 0.52625866132 *  old_err) + old_out);
+	old_err = err + saturation(out)-out;
+	old_out = out;
+	return out;
+}
+
+float err1 =0, err2 = 0, vela=0;
+
 void loop() {
 	static int32_t previous_t;
 	static int32_t t;
 
 	t = micros();
 
-	if(t-previous_t >= 1500){
-		Serial.println(t-previous_t);
+	if(t-previous_t >= 2000){
+		//Serial.println(t-previous_t);
 		int32_t v1,v2;
 		step(&v1, &v2);
 
 		previous_t = t;
-		Motor::move(0, deadzone(v1));
+		//Motor::move(0, deadzone(v1));
 		Motor::move(1, deadzone(v2));
 
 		Encoder::vel enc = Encoder::encoder();
 		Radio::vel message;
-		message.vel_A = (int32_t)enc.motorA;
+		
+		vela =enc.motorA;
+		err1 = v1 - vela;
+		//err2 = v2 - enc.motorB ;
+		Serial.print(err1);
+		Serial.print("\t");
+		int32_t control = control1(err1);
+		Serial.print(control);
+		Serial.println("\r");
+		Motor::move(0, deadzone(control));
+		//Motor::move(1, deadzone(control1(err2)));
+
+		message.vel_A = (int32_t)vela;
 		message.vel_B = (int32_t)enc.motorB;
 		message.in_A = v1;
 		message.in_B = v2;
