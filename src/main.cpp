@@ -52,14 +52,24 @@ void triangular_wave(int32_t *v1, int32_t *v2){
 	*v2 = triangular_wave_cont*64/1000;
 }
 
+void sine_wave(int32_t *v1, int32_t *v2){
+	static int32_t sine_wave_cont;
+	if(sine_wave_cont >= 100000){
+		sine_wave_cont = 0;
+	}
+	sine_wave_cont ++;
+	*v1 = 20*sin(sine_wave_cont/200.0);
+	*v2 = 20*sin(sine_wave_cont/200.0);
+}
+
 void square_wave(int32_t *v1, int32_t *v2){
 	static uint32_t square_wave_cont;
-	if(square_wave_cont > 200){
+	if(square_wave_cont > 500){
 		wave_flag = -1*wave_flag;
 		square_wave_cont = 0;
 	}
-	*v1 = 64*wave_flag;
-	*v2 = 64*wave_flag;
+	*v1 = 20*wave_flag;
+	*v2 = 20*wave_flag;
 	square_wave_cont++;
 }
 
@@ -84,7 +94,7 @@ void run_straight(int32_t *v1, int32_t *v2){
 int32_t control1(double err){
 	static double old_err;
 	static int32_t old_out;
-	int32_t out = int32_t ( 1.94581757887 * (err -0.625449679756  *  old_err) + old_out);
+	int32_t out = int32_t (   1.300049338 * (err -0.52625866132  *  old_err) + old_out);
 	old_err = err + saturation(out)-out;
 	old_out = out;
 	return out;
