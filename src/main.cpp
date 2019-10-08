@@ -2,7 +2,7 @@
 
 #define TEENSY_DEBUG false
 #define ROBOT_NUMBER 0
-
+#define scale 1000
 #include "radio.hpp"
 #include "imu.hpp"
 #include "motor.hpp"
@@ -15,8 +15,8 @@ Imu::imuAll imuData;
 double pos(double angVel);
 double filter(double var);
 void setup() {
-	Serial.begin(9600);
-	while(!Serial);
+	//Serial.begin(9600);
+	//while(!Serial);
 	#if (TEENSY_DEBUG || CONTROL_DEBUG || IMU_DEBUG || MOTOR_DEBUG)
 	Serial.println("SETUP!");
 	#endif
@@ -30,26 +30,28 @@ int8_t wave_flag = 1;
 int8_t triangular_incrementer = 1;
 
 
-#define DEADZONE 5
+#define DEADZONE 10
 int32_t deadzone(int32_t vin){
-	return (vin > 0) ? vin+DEADZONE : vin-DEADZONE;
+	if (vin!=0)
+		return (vin > 0) ? vin+DEADZONE : vin-DEADZONE;
+	return 0;
 }
 
-int16_t saturation(int32_t vin){
-	return min(max(vin, -255), 255);
+double saturation(double vin){
+	return min(max(vin, -255.0), 255.0);
 }	
 
 void triangular_wave(int32_t *v1, int32_t *v2){
 	static int32_t triangular_wave_cont;
-	if(triangular_wave_cont >= 1000){
+	if(triangular_wave_cont >= scale){
 		triangular_incrementer = -1;
 	}
-	else if(triangular_wave_cont <= -1000){
-		triangular_incrementer = 0;
+	else if(triangular_wave_cont <= -scale){
+		triangular_incrementer = 1;
 	}
 	triangular_wave_cont += triangular_incrementer;
-	*v1 = triangular_wave_cont*64/1000;
-	*v2 = triangular_wave_cont*64/1000;
+	*v1 = triangular_wave_cont*64/scale;
+	*v2 = triangular_wave_cont*64/scale;
 }
 
 void sine_wave(int32_t *v1, int32_t *v2){
@@ -58,8 +60,8 @@ void sine_wave(int32_t *v1, int32_t *v2){
 		sine_wave_cont = 0;
 	}
 	sine_wave_cont ++;
-	*v1 = 20*sin(sine_wave_cont/200.0);
-	*v2 = 20*sin(sine_wave_cont/200.0);
+	*v1 = 40*sin(sine_wave_cont/400.0);
+	*v2 = 40*sin(sine_wave_cont/400.0);
 }
 
 void square_wave(int32_t *v1, int32_t *v2){
@@ -79,11 +81,14 @@ void step(int32_t *v1, int32_t *v2){
 	if(step_cont > 200){
 		step_flag = 1;
 	}
-	else {
-		step_cont++;
+	
+	if(step_cont>2000){
+		step_flag = 0;
+		
 	}
-	*v1 = 20*step_flag;
-	*v2 = 20*step_flag;
+	step_cont++;
+	*v1 = 30*step_flag;
+	*v2 = 30*step_flag;
 }
 
 void run_straight(int32_t *v1, int32_t *v2){
@@ -91,21 +96,21 @@ void run_straight(int32_t *v1, int32_t *v2){
 	*v2 = 64;
 }
 
-int32_t control1(double err){
+double control1(double err){
 	static double old_err;
-	static int32_t old_out;
-	int32_t out = int32_t (   1.300049338 * (err -0.52625866132  *  old_err) + old_out);
-	old_err = err + saturation(out)-out;
-	old_out = out;
+	static double old_out;
+	double out = (  1.9077 * (err - 0.9418  *  old_err) + old_out);
+	old_err = err -  (saturation(out)-out);
+	old_out = out; //=  (abs(out) < 255)? out : 0;
 	return out;
 }
 
-int32_t control2(double err){
+double control2(double err){
 	static double old_err;
-	static int32_t old_out;
-	int32_t out = int32_t ( 1.3000493385 * (err - 0.52625866132 *  old_err) + old_out);
-	old_err = err + saturation(out)-out;
-	old_out = out;
+	static double old_out;
+	double out =  (   1.9077 * (err  - 0.9418 *  old_err) + old_out);
+	old_err = err - (saturation(out)-out);
+	old_out = out; //(abs(out) < 255)? out : 0;;
 	return out;
 }
 
@@ -117,28 +122,33 @@ void loop() {
 
 	t = micros();
 
-	if(t-previous_t >= 2000){
+	if(t-previous_t >= 1500){
 		//Serial.println(t-previous_t);
 		int32_t v1,v2;
-		step(&v1, &v2);
+		triangular_wave(&v1, &v2);
 
 		previous_t = t;
 		//Motor::move(0, deadzone(v1));
-		Motor::move(1, deadzone(v2));
+		//Motor::move(1, deadzone(v2));
 
 		Encoder::vel enc = Encoder::encoder();
 		Radio::vel message;
 		
 		vela =enc.motorA;
-		err1 = v1 - vela;
-		//err2 = v2 - enc.motorB ;
-		Serial.print(err1);
-		Serial.print("\t");
-		int32_t control = control1(err1);
-		Serial.print(control);
-		Serial.println("\r");
-		Motor::move(0, deadzone(control));
-		//Motor::move(1, deadzone(control1(err2)));
+		err1 = v1 - vela  - 1* (vela-enc.motorB);
+		err2 = v2 - enc.motorB +  1*(vela-enc.motorB) ;
+		int32_t controlA = (int32_t)control1(err1);
+		int32_t controlB = (int32_t)control2(err2);
+		// Serial.print(err1);
+		// Serial.print("\t");
+		// Serial.print(controlA);
+		// Serial.print("\t");
+		// Serial.print(err2);
+		// Serial.print("\t");
+		// Serial.print(controlB);
+		// Serial.println("\r");
+		Motor::move(0, deadzone(controlA));
+		Motor::move(1, deadzone(controlB));
 
 		message.vel_A = (int32_t)vela;
 		message.vel_B = (int32_t)enc.motorB;
