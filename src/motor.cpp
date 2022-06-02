@@ -18,6 +18,7 @@ namespace Motor {
         pinMode(AIN2_PIN, OUTPUT);
 
         pinMode(STBY_PIN, OUTPUT);
+        digitalWrite(STBY_PIN, HIGH);
 
         pinMode(PWMB_PIN, OUTPUT);
         pinMode(BIN1_PIN, OUTPUT);
@@ -26,7 +27,7 @@ namespace Motor {
 
     void move(uint8_t motor, int32_t power) {
         //Allows current for the motors
-        digitalWrite(STBY_PIN, HIGH);
+        
 
         //Saturador
         power = power > 255 ? 255 : power;
@@ -53,6 +54,10 @@ namespace Motor {
 
     //Stops current for the motors
     void stop() {
-        digitalWrite(STBY_PIN, LOW);
+        digitalWrite(AIN1_PIN, LOW);
+        digitalWrite(AIN2_PIN, LOW);
+
+        digitalWrite(PWMA_PIN, HIGH);
+        digitalWrite(PWMB_PIN, HIGH);
     }
 }
