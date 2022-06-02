@@ -56,6 +56,8 @@ namespace Motor {
     void stop() {
         digitalWrite(AIN1_PIN, LOW);
         digitalWrite(AIN2_PIN, LOW);
+        digitalWrite(BIN1_PIN, LOW);
+        digitalWrite(BIN2_PIN, LOW);
 
         digitalWrite(PWMA_PIN, HIGH);
         digitalWrite(PWMB_PIN, HIGH);
